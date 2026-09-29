@@ -19,8 +19,11 @@ export function Organism3D({ organism, species }: Organism3DProps) {
   const [hovered, setHovered] = useState(false);
   const setSelectedOrganism = useEcosystemStore((s) => s.setSelectedOrganism);
   const selectedOrganismId = useEcosystemStore((s) => s.selectedOrganismId);
+  const trackedOrganismId = useEcosystemStore((s) => s.trackedOrganismId);
   const showLabels = useEcosystemStore((s) => s.showLabels);
   const isSelected = selectedOrganismId === organism.id;
+  const isTracked = trackedOrganismId === organism.id;
+  const trackingHaloRef = useRef<THREE.Mesh>(null);
 
   useFrame((state) => {
     if (groupRef.current) {
@@ -43,6 +46,14 @@ export function Organism3D({ organism, species }: Organism3DProps) {
 
       const targetScale = organism.scale * (hovered || isSelected ? 1.2 : 1);
       groupRef.current.scale.lerp(new THREE.Vector3(targetScale, targetScale, targetScale), 0.15);
+    }
+
+    if (trackingHaloRef.current) {
+      const pulse = 1 + Math.sin(state.clock.elapsedTime * 3.5) * 0.12;
+      trackingHaloRef.current.scale.setScalar(pulse);
+      trackingHaloRef.current.rotation.z = state.clock.elapsedTime * 0.8;
+      const material = trackingHaloRef.current.material as THREE.MeshBasicMaterial;
+      material.opacity = 0.55 + Math.sin(state.clock.elapsedTime * 3.5) * 0.2;
     }
   });
 
@@ -113,6 +124,20 @@ export function Organism3D({ organism, species }: Organism3DProps) {
             transparent
             opacity={0.5}
             side={THREE.DoubleSide}
+          />
+        </mesh>
+      )}
+
+      {isTracked && (
+        <mesh ref={trackingHaloRef} position={[0, 0.05, 0]} rotation={[Math.PI / 2, 0, 0]}>
+          <ringGeometry args={[species.size * 1.05, species.size * 1.28, 48]} />
+          <meshBasicMaterial
+            color="#67e8f9"
+            transparent
+            opacity={0.7}
+            side={THREE.DoubleSide}
+            depthWrite={false}
+            blending={THREE.AdditiveBlending}
           />
         </mesh>
       )}

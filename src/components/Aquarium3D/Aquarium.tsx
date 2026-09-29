@@ -1,4 +1,4 @@
-import { useRef, useMemo, useState } from 'react';
+import { useRef, useMemo, useEffect, type ComponentRef, type MutableRefObject } from 'react';
 import { Canvas, useFrame, ThreeEvent } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import { EffectComposer, Bloom } from '@react-three/postprocessing';
@@ -281,13 +281,65 @@ function ClickableArea({ onAquariumClick }: { onAquariumClick: (point: THREE.Vec
   );
 }
 
+type OrbitControlsImpl = ComponentRef<typeof OrbitControls>;
+
+function CameraTracker({ controlsRef }: { controlsRef: MutableRefObject<OrbitControlsImpl | null> }) {
+  const trackedOrganismId = useEcosystemStore((s) => s.trackedOrganismId);
+  const setTrackedOrganism = useEcosystemStore((s) => s.setTrackedOrganism);
+  const trackingOffset = useRef(new THREE.Vector3());
+  const isTrackingActive = useRef(false);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setTrackedOrganism(null);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [setTrackedOrganism]);
+
+  useFrame((state, delta) => {
+    const controls = controlsRef.current;
+    if (!controls) return;
+
+    const targetOrganism = useEcosystemStore
+      .getState()
+      .organisms.find((organism) => organism.id === trackedOrganismId);
+
+    if (!trackedOrganismId || !targetOrganism) {
+      controls.enabled = true;
+      controls.update();
+      isTrackingActive.current = false;
+      return;
+    }
+
+    controls.enabled = false;
+
+    if (!isTrackingActive.current) {
+      trackingOffset.current.copy(state.camera.position).sub(controls.target);
+      isTrackingActive.current = true;
+    }
+
+    const targetPosition = targetOrganism.position.clone().add(trackingOffset.current);
+    const smoothing = 1 - Math.exp(-Math.min(delta, 0.1) * 4);
+
+    state.camera.position.lerp(targetPosition, smoothing);
+    controls.target.lerp(targetOrganism.position, smoothing);
+    controls.update();
+  });
+
+  return null;
+}
+
 interface Aquarium3DProps {
   onAquariumClick: (point: THREE.Vector3) => void;
 }
 
 export function Aquarium3D({ onAquariumClick }: Aquarium3DProps) {
   const { organisms } = useEcosystemStore();
-  const selectedSpeciesId = useEcosystemStore((s) => s.selectedSpeciesId);
+  const controlsRef = useRef<OrbitControlsImpl>(null);
 
   return (
     <Canvas
@@ -329,12 +381,14 @@ export function Aquarium3D({ onAquariumClick }: Aquarium3DProps) {
       })}
 
       <ClickableArea onAquariumClick={onAquariumClick} />
+      <CameraTracker controlsRef={controlsRef} />
 
       <EffectComposer>
         <Bloom luminanceThreshold={0.2} luminanceSmoothing={0.9} height={300} intensity={0.5} />
       </EffectComposer>
 
       <OrbitControls
+        ref={controlsRef}
         enablePan={false}
         minDistance={4}
         maxDistance={15}

@@ -1,16 +1,20 @@
 import { GlassCard } from '@/components/common/GlassCard';
 import { useEcosystemStore } from '@/store/useEcosystemStore';
-import { getSpeciesById, SPECIES, TROPHIC_LEVEL_COLORS, TROPHIC_LEVEL_LABELS } from '@/data/species';
-import { X, Trash2 } from 'lucide-react';
+import { getSpeciesById, TROPHIC_LEVEL_COLORS, TROPHIC_LEVEL_LABELS } from '@/data/species';
+import { X, Trash2, Crosshair } from 'lucide-react';
 
 export function SpeciesInfoCard() {
   const selectedOrganismId = useEcosystemStore((s) => s.selectedOrganismId);
+  const trackedOrganismId = useEcosystemStore((s) => s.trackedOrganismId);
   const organisms = useEcosystemStore((s) => s.organisms);
   const setSelectedOrganism = useEcosystemStore((s) => s.setSelectedOrganism);
+  const setTrackedOrganism = useEcosystemStore((s) => s.setTrackedOrganism);
   const removeOrganism = useEcosystemStore((s) => s.removeOrganism);
 
-  const organism = organisms.find((o) => o.id === selectedOrganismId);
+  const organismId = trackedOrganismId ?? selectedOrganismId;
+  const organism = organisms.find((o) => o.id === organismId);
   const species = organism ? getSpeciesById(organism.speciesId) : null;
+  const isTracked = organism ? trackedOrganismId === organism.id : false;
 
   if (!organism || !species) return null;
 
@@ -57,7 +61,10 @@ export function SpeciesInfoCard() {
             </div>
           </div>
           <button
-            onClick={() => setSelectedOrganism(null)}
+            onClick={() => {
+              setSelectedOrganism(null);
+              setTrackedOrganism(null);
+            }}
             className="text-white/50 hover:text-white transition-colors"
           >
             <X size={20} />
@@ -149,16 +156,27 @@ export function SpeciesInfoCard() {
           )}
         </div>
 
-        <button
-          onClick={() => {
-            removeOrganism(organism.id);
-            setSelectedOrganism(null);
-          }}
-          className="mt-4 w-full flex items-center justify-center gap-2 py-2 rounded-xl bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-colors text-sm font-medium"
-        >
-          <Trash2 size={16} />
-          移除此生物
-        </button>
+        <div className="mt-4 space-y-2">
+          <button
+            onClick={() => setTrackedOrganism(isTracked ? null : organism.id)}
+            className={`w-full flex items-center justify-center gap-2 py-2 rounded-xl transition-colors text-sm font-medium ${
+              isTracked
+                ? 'bg-cyan-500/30 text-cyan-200 hover:bg-cyan-500/40'
+                : 'bg-white/10 text-cyan-300 hover:bg-white/15'
+            }`}
+          >
+            <Crosshair size={16} />
+            {isTracked ? '停止追踪（Esc）' : '追踪此生物'}
+          </button>
+
+          <button
+            onClick={() => removeOrganism(organism.id)}
+            className="w-full flex items-center justify-center gap-2 py-2 rounded-xl bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-colors text-sm font-medium"
+          >
+            <Trash2 size={16} />
+            移除此生物
+          </button>
+        </div>
       </GlassCard>
     </div>
   );
