@@ -18,9 +18,12 @@ export function Organism3D({ organism, species }: Organism3DProps) {
   const groupRef = useRef<THREE.Group>(null);
   const [hovered, setHovered] = useState(false);
   const setSelectedOrganism = useEcosystemStore((s) => s.setSelectedOrganism);
+  const setTrackedOrganism = useEcosystemStore((s) => s.setTrackedOrganism);
   const selectedOrganismId = useEcosystemStore((s) => s.selectedOrganismId);
+  const trackedOrganismId = useEcosystemStore((s) => s.trackedOrganismId);
   const showLabels = useEcosystemStore((s) => s.showLabels);
   const isSelected = selectedOrganismId === organism.id;
+  const isTracked = trackedOrganismId === organism.id;
 
   useFrame((state) => {
     if (groupRef.current) {
@@ -41,7 +44,7 @@ export function Organism3D({ organism, species }: Organism3DProps) {
         groupRef.current.position.y += Math.sin(swimPhase) * 0.002;
       }
 
-      const targetScale = organism.scale * (hovered || isSelected ? 1.2 : 1);
+      const targetScale = organism.scale * (hovered || isSelected || isTracked ? 1.2 : 1);
       groupRef.current.scale.lerp(new THREE.Vector3(targetScale, targetScale, targetScale), 0.15);
     }
   });
@@ -49,6 +52,9 @@ export function Organism3D({ organism, species }: Organism3DProps) {
   const handleClick = (e: ThreeEvent<MouseEvent>) => {
     e.stopPropagation();
     setSelectedOrganism(organism.id);
+    if (trackedOrganismId === organism.id) {
+      setTrackedOrganism(null);
+    }
   };
 
   const handlePointerOver = (e: ThreeEvent<PointerEvent>) => {

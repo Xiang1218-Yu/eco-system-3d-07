@@ -1,21 +1,29 @@
 import { GlassCard } from '@/components/common/GlassCard';
 import { useEcosystemStore } from '@/store/useEcosystemStore';
-import { getSpeciesById, SPECIES, TROPHIC_LEVEL_COLORS, TROPHIC_LEVEL_LABELS } from '@/data/species';
-import { X, Trash2 } from 'lucide-react';
+import { getSpeciesById, TROPHIC_LEVEL_COLORS, TROPHIC_LEVEL_LABELS } from '@/data/species';
+import { X, Trash2, Crosshair } from 'lucide-react';
 
 export function SpeciesInfoCard() {
   const selectedOrganismId = useEcosystemStore((s) => s.selectedOrganismId);
   const organisms = useEcosystemStore((s) => s.organisms);
   const setSelectedOrganism = useEcosystemStore((s) => s.setSelectedOrganism);
+  const setTrackedOrganism = useEcosystemStore((s) => s.setTrackedOrganism);
+  const trackedOrganismId = useEcosystemStore((s) => s.trackedOrganismId);
   const removeOrganism = useEcosystemStore((s) => s.removeOrganism);
 
-  const organism = organisms.find((o) => o.id === selectedOrganismId);
+  const displayOrganismId = trackedOrganismId ?? selectedOrganismId;
+  const organism = organisms.find((o) => o.id === displayOrganismId);
   const species = organism ? getSpeciesById(organism.speciesId) : null;
+  const isTracked = organism?.id === trackedOrganismId;
 
   if (!organism || !species) return null;
 
   const energyPercent = (organism.energy / (species.energyValue * 1.5)) * 100;
   const agePercent = (organism.age / species.lifespan) * 100;
+
+  const handleToggleTracking = () => {
+    setTrackedOrganism(isTracked ? null : organism.id);
+  };
 
   const getStateLabel = (state: string) => {
     const labels: Record<string, string> = {
@@ -57,7 +65,10 @@ export function SpeciesInfoCard() {
             </div>
           </div>
           <button
-            onClick={() => setSelectedOrganism(null)}
+            onClick={() => {
+              if (isTracked) setTrackedOrganism(null);
+              setSelectedOrganism(null);
+            }}
             className="text-white/50 hover:text-white transition-colors"
           >
             <X size={20} />
@@ -65,6 +76,18 @@ export function SpeciesInfoCard() {
         </div>
 
         <p className="text-white/70 text-sm mb-4 leading-relaxed">{species.description}</p>
+
+        <button
+          onClick={handleToggleTracking}
+          className={`mb-4 w-full flex items-center justify-center gap-2 py-2 rounded-xl transition-colors text-sm font-medium ${
+            isTracked
+              ? 'bg-cyan-500/30 text-cyan-300 hover:bg-cyan-500/40'
+              : 'bg-white/10 text-white/80 hover:bg-white/15'
+          }`}
+        >
+          <Crosshair size={16} />
+          {isTracked ? '停止追踪' : '追踪此个体'}
+        </button>
 
         <div className="space-y-3 mb-4">
           <div>

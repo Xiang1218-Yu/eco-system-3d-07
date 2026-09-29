@@ -1,4 +1,4 @@
-import { useRef, useMemo, useState } from 'react';
+import { useRef, useMemo, useEffect, type ComponentRef, type RefObject } from 'react';
 import { Canvas, useFrame, ThreeEvent } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import { EffectComposer, Bloom } from '@react-three/postprocessing';
@@ -281,13 +281,120 @@ function ClickableArea({ onAquariumClick }: { onAquariumClick: (point: THREE.Vec
   );
 }
 
+function TrackingRig({
+  controlsRef,
+}: {
+  controlsRef: RefObject<ComponentRef<typeof OrbitControls>>;
+}) {
+  const trackedOrganismId = useEcosystemStore((s) => s.trackedOrganismId);
+  const setTrackedOrganism = useEcosystemStore((s) => s.setTrackedOrganism);
+  const trackedOrganism = useEcosystemStore((s) =>
+    s.organisms.find((organism) => organism.id === s.trackedOrganismId),
+  );
+  const species = trackedOrganism ? getSpeciesById(trackedOrganism.speciesId) : null;
+
+  const haloRef = useRef<THREE.Group>(null);
+  const outerRingRef = useRef<THREE.Mesh>(null);
+  const cameraOffsetRef = useRef<THREE.Vector3 | null>(null);
+  const savedTargetRef = useRef<THREE.Vector3 | null>(null);
+  const missingTargetRef = useRef(false);
+
+  useEffect(() => {
+    if (!trackedOrganismId) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setTrackedOrganism(null);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [trackedOrganismId, setTrackedOrganism]);
+
+  useFrame((state, delta) => {
+    const controls = controlsRef.current;
+
+    if (!trackedOrganismId || !trackedOrganism) {
+      if (trackedOrganismId && !missingTargetRef.current) {
+        missingTargetRef.current = true;
+        setTrackedOrganism(null);
+      }
+
+      if (controls && savedTargetRef.current) {
+        controls.target.copy(savedTargetRef.current);
+        controls.update();
+      }
+      savedTargetRef.current = null;
+      cameraOffsetRef.current = null;
+      return;
+    }
+
+    missingTargetRef.current = false;
+
+    if (!cameraOffsetRef.current || !controls) {
+      if (controls) {
+        savedTargetRef.current = controls.target.clone();
+        cameraOffsetRef.current = state.camera.position.clone().sub(trackedOrganism.position);
+      }
+    } else {
+      const desiredCameraPosition = trackedOrganism.position.clone().add(cameraOffsetRef.current);
+      const cameraAlpha = 1 - Math.exp(-delta * 3.5);
+      state.camera.position.lerp(desiredCameraPosition, cameraAlpha);
+
+      const targetAlpha = 1 - Math.exp(-delta * 5);
+      controls.target.lerp(trackedOrganism.position, targetAlpha);
+      controls.update();
+    }
+
+    if (haloRef.current) {
+      haloRef.current.position.copy(trackedOrganism.position);
+      const pulse = 1 + Math.sin(state.clock.elapsedTime * 3) * 0.06;
+      haloRef.current.scale.setScalar(pulse);
+    }
+    if (outerRingRef.current) {
+      outerRingRef.current.rotation.z += delta * 0.8;
+    }
+  });
+
+  if (!trackedOrganism || !species) return null;
+
+  const haloColor = species.color;
+
+  return (
+    <group ref={haloRef}>
+      <mesh rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[species.size * 0.9, species.size * 1.15, 48]} />
+        <meshBasicMaterial
+          color={haloColor}
+          transparent
+          opacity={0.85}
+          side={THREE.DoubleSide}
+          depthWrite={false}
+        />
+      </mesh>
+      <mesh ref={outerRingRef} rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[species.size * 1.28, species.size * 1.38, 48]} />
+        <meshBasicMaterial
+          color="#67e8f9"
+          transparent
+          opacity={0.45}
+          side={THREE.DoubleSide}
+          depthWrite={false}
+        />
+      </mesh>
+    </group>
+  );
+}
+
 interface Aquarium3DProps {
   onAquariumClick: (point: THREE.Vector3) => void;
 }
 
 export function Aquarium3D({ onAquariumClick }: Aquarium3DProps) {
   const { organisms } = useEcosystemStore();
-  const selectedSpeciesId = useEcosystemStore((s) => s.selectedSpeciesId);
+  const trackedOrganismId = useEcosystemStore((s) => s.trackedOrganismId);
+  const controlsRef = useRef<ComponentRef<typeof OrbitControls>>(null);
 
   return (
     <Canvas
@@ -328,6 +435,8 @@ export function Aquarium3D({ onAquariumClick }: Aquarium3DProps) {
         );
       })}
 
+      <TrackingRig controlsRef={controlsRef} />
+
       <ClickableArea onAquariumClick={onAquariumClick} />
 
       <EffectComposer>
@@ -335,6 +444,8 @@ export function Aquarium3D({ onAquariumClick }: Aquarium3DProps) {
       </EffectComposer>
 
       <OrbitControls
+        ref={controlsRef}
+        enabled={!trackedOrganismId}
         enablePan={false}
         minDistance={4}
         maxDistance={15}

@@ -9,7 +9,12 @@ export function EcosystemStats() {
   const simulationTime = useEcosystemStore((s) => s.simulationTime);
   const getStats = useEcosystemStore((s) => s.getStats);
 
-  const stats = useMemo(() => getStats(), [organisms, simulationTime, getStats]);
+  const stats = useMemo(
+    () => getStats(),
+    // getStats reads the latest store state; subscriptions refresh this value.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [organisms, simulationTime, getStats],
+  );
 
   const levelData = useMemo(() => {
     const levels: Record<TrophicLevel, number> = {
